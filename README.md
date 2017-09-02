@@ -1,4 +1,4 @@
 apinator
 ========
 
-Javascript api for Akinator
+Javascript API wrapper for Akinator, the web genie.

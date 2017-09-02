@@ -1,0 +1,15 @@
+{
+  "ignore": "node_modules/**",
+  "presets": [
+    "es2015"
+  ],
+  "plugins": [
+    "lodash",
+    [
+      "transform-object-rest-spread",
+      {
+        "useBuiltIns": true
+      }
+    ]
+  ]
+}

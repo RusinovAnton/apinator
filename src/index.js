@@ -1,96 +1,175 @@
-var Apinator = function () {
-  this.url = 'http://api-en4.akinator.com/ws/';
-  this.session, this.signature, this.onAsk;
-  this.step = 0;
+import jsonp from 'jsonp';
+
+
+const DEFAULT_AKINATOR_API_URL = 'http://api-en4.akinator.com/ws/';
+const DEFAULT_PLAYER_NAME = 'Player1';
+
+
+const GUESS_COMPLETION = {
+  'OK': 1,
+  'KO - ELEM LIST IS EMPTY': 0,
+  'WARN - NO QUESTION': 0,
 };
 
-Apinator.prototype.hello = function (onAsk, onFound) {
-  this.onAsk = onAsk;
-  this.onFound = onFound;
+/**
+ * Javascript API wrapper for Akinator, the web genie.
+ * @class Apinator
+ * @version 2.0.0
+ */
+class Apinator {
+  /**
+   * Extract question, answers and isLast from response.
+   *
+   * @param {object} responseParams
+   * @return {{question: {id: number, text: string}, answers: Array, isLast: boolean}}
+   */
+  static transformResponse (responseParams) {
+    const parameters = responseParams.step_information ? responseParams.step_information : responseParams;
+    const { answers, questionid, question, progression } = parameters;
 
-  jQuery.ajax({
-    url: this.url + 'new_session?partner=1&player=apinator',
-    dataType: 'jsonp',
-    error: function () {
-      console.error(arguments);
-      debugger;
-    },
-    success: function (response) {
-      this.session = response.parameters.identification.session;
-      this.signature = response.parameters.identification.signature;
+    return {
+      question: {
+        id: questionid,
+        text: question
+      },
+      answers: answers.map(({ answer }, index) => {
+        return {
+          id: index,
+          text: answer
+        };
+      }),
+      isLast: parseInt(progression, 10) === 100
+    };
+  };
 
-      response = this.extractQuestion(response);
-
-      this.onAsk(response.question, response.answers);
-
-    }.bind(this)
-  });
-
-};
-
-Apinator.prototype.extractQuestion = function (response) {
-  var parameters = response.parameters;
-  if (parameters.step_information) {
-    parameters = parameters.step_information;
+  /**
+   *
+   * @param {object} error
+   * @return {undefined}
+   */
+  static handleError (error) {
+    console.warn(error);
+    // TODO: throw mb?
+    // throw error;
   }
 
-  var question = {
-    id: parameters.questionid,
-    text: parameters.question
+  /**
+   * Initialize Akinator API wrapper.
+   *
+   * @constructor
+   * @param {object} [opts]
+   * @param {string} [opts.apiUrl = DEFAULT_AKINATOR_API_URL] - akinator api url
+   * @param {string} [opts.playerName = DEFAULT_PLAYER_NAME] - enter player name
+   * @param {function} onAsk
+   * @param {function} onFound
+   */
+  constructor (onAsk, onFound, opts = {}) {
+    const { apiUrl = DEFAULT_AKINATOR_API_URL, playerName = DEFAULT_PLAYER_NAME } = opts;
+
+    this.onAsk = onAsk;
+    this.onFound = onFound;
+    this.playerName = playerName;
+    this.step = 0;
+    this.url = apiUrl;
+    this.sendAnswer = this.sendAnswer.bind(this);
+  }
+
+  request (url) {
+    return new Promise((resolve, reject) => {
+      jsonp(url, null, (err, data) => {
+        if (err) {
+          reject(err);
+        }
+        else {
+          resolve(data);
+        }
+      });
+    })
+      .then((response) => {
+        if (GUESS_COMPLETION[response.completion]) {
+          return response;
+        }
+
+        throw response;
+      });
+  }
+
+  /**
+   * Initialize Akinator session.
+   *
+   * @return {undefined}
+   */
+  start () {
+    const newSessionUrl = `${this.url}new_session?partner=1&player=${this.playerName}`;
+
+    this.request(newSessionUrl)
+      .then((response) => {
+        this.session = response.parameters.identification.session;
+        this.signature = response.parameters.identification.signature;
+
+        const { question, answers } = Apinator.transformResponse(response.parameters);
+        this.ask(question, answers);
+      })
+      .catch(Apinator.handleError);
+  }
+
+  /**
+   *
+   * @param {object} question
+   * @param {Array} answers
+   * @return {undefined}
+   */
+  ask (question, answers) {
+    this.onAsk(question, answers, this.sendAnswer);
+  }
+
+  /**
+   * Send chosen answerId.
+   *
+   * @param {*} answerId
+   * @return {undefined}
+   */
+  sendAnswer (answerId) {
+    const answerUrl = `${this.url}answer?session=${this.session}&signature=${this.signature}&step=${this.step}&answer=${answerId}`;
+
+    this.request(answerUrl)
+      .then((response) => {
+        const { answers, question, isLast } = Apinator.transformResponse(response.parameters);
+
+        if (isLast) {
+          this.getCharacters();
+        }
+        else {
+          this.step++;
+          this.ask(question, answers);
+        }
+      })
+      .catch(Apinator.handleError);
   };
-  var answers = [];
-  jQuery.each(parameters.answers, function (id, answer) {
-    answers.push({
-      id: id,
-      text: answer.answer
-    });
-  });
 
-  return { question: question, answers: answers, last: parameters.progression == 100 };
-};
+  /**
+   *
+   * @return {undefined}
+   */
+  getCharacters () {
+    const getCharactersUrl = `${this.url}list?session=${this.session}&signature=${this.signature}&step=${this.step}&size=2&max_pic_width=246&max_pic_height=294&pref_photos=OK-EN&mode_question=0`;
 
-Apinator.prototype.sendAnswer = function (answerId) {
-  jQuery.ajax({
-    url: this.url + 'answer?session=' + this.session + '&signature=' + this.signature + '&step=' + this.step + '&answer=' + answerId,
-    dataType: 'jsonp',
-    error: function () {console.error(arguments);},
-    success: function (response) {
-
-      response = this.extractQuestion(response);
-      if (response.last) {
-        this.getCharacters();
-      }
-      else {
-        this.onAsk(response.question, response.answers);
-      }
-    }.bind(this)
-  });
-
-  this.step++;
-};
-
-Apinator.prototype.getCharacters = function () {
-  jQuery.ajax({
-    url: this.url + 'list?session=' + this.session + '&signature=' + this.signature + '&step=' + this.step + '&size=2&max_pic_width=246&max_pic_height=294&pref_photos=OK-FR&mode_question=0',
-    dataType: 'jsonp',
-    error: function () {console.error(arguments);},
-    success: function (response) {
-
-      var characters = [];
-      jQuery.each(response.parameters.elements, function (i, element) {
-
-        characters.push({
-          id: element.element.id,
-          name: element.element.name,
-          probability: element.element.proba
+    this.request(getCharactersUrl)
+      .then((response) => {
+        const elements = response.parameters.elements;
+        const characters = elements.map((element, i) => {
+          return {
+            id: element.element.id,
+            name: element.element.name,
+            probability: element.element.proba
+          };
         });
 
-      });
-
-      this.onFound(characters);
-
-    }.bind(this)
-  });
-
-  this.step++;
+        this.onFound(characters);
+        this.step++;
+      })
+      .catch(Apinator.handleError);
+  };
 }
+
+export default Apinator;

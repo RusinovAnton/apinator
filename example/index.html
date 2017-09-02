@@ -1,32 +1,36 @@
 <!DOCTYPE html>
 <html>
-	<head>
-		<meta charset="utf-8">
-		<title>Apinator</title>
-		<script type="text/javascript" src="jquery-2.1.0.min.js"></script>
-		<script type="text/javascript" src="../apinator.js"></script>
-		<script>
+<head>
+    <meta charset="utf-8">
+    <title>Apinator</title>
+    <script type="text/javascript" src="jquery-2.1.0.min.js"></script>
+    <script type="text/javascript" src="../dist/apinator.js"></script>
+    <script>
+      (function () {
+        const akinator = new Apinator(onAsk, onFound);
 
-			var api = new Apinator();
+        function onAsk (question, answers, sendAnswer) {
+          const i = Math.floor(Math.random() * 2);
+          const nextAnswer = answers[i];
 
-			api.hello(function(question, answers) {
-			
-				var i = Math.floor(Math.random() * 5);
+          console.log(question.text, nextAnswer.text);
+          setTimeout(function() {
+            sendAnswer(nextAnswer.id);
+          }, 500);
+        }
 
-				console.log(question.text, answers[i].text);
-				api.sendAnswer(answers[i].id);
-			
-			}, function(characters) {
-			
-				jQuery.each(characters, function (i, char) {
-					console.log('"' + char.name + '" (' + char.probability + ')');
-				});
-			
-			});
+        function onFound (characters) {
+          jQuery.each(characters, function (i, char) {
+            console.log('"' + char.name + '" (' + char.probability + ')');
+          });
+        }
 
-		</script>
-	</head>
-	<body>
-	</body>
+        akinator.start();
+      })();
+
+    </script>
+</head>
+<body>
+</body>
 </html>
 

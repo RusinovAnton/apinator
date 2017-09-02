@@ -1,25 +1,49 @@
 {
   "name": "apinator",
-  "version": "1.0.0",
-  "description": "apinator ========",
+  "version": "2.0.0",
+  "description": "Javascript API wrapper for Akinator, the web genie.",
   "main": "apinator.js",
   "directories": {
-    "example": "example"
+    "example": "example",
+    "dist": "dist",
+    "src": "src"
   },
   "scripts": {
+    "build": "npx webpack",
+    "dev": "npx webpack -w",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/devsseb/apinator.git"
+    "url": "git+https://github.com/RusinovAnton/apinator.git"
   },
-  "author": "",
-  "license": "ISC",
+  "authors": [
+    {
+      "name": "devsseb"
+    },
+    {
+      "name": "RusinovAnton",
+      "email": "rusinovantondev@gmail.com"
+    }
+  ],
+  "license": "MIT",
   "bugs": {
-    "url": "https://github.com/devsseb/apinator/issues"
+    "url": "https://github.com/RusinovAnton/apinator/issues"
   },
-  "homepage": "https://github.com/devsseb/apinator#readme",
+  "homepage": "https://github.com/RusinovAnton/apinator#readme",
   "dependencies": {
-    "axios": "^0.16.2"
+    "axios": "^0.16.2",
+    "jsonp": "^0.2.1",
+    "lodash": "^4.17.4"
+  },
+  "devDependencies": {
+    "babel-core": "^6.26.0",
+    "babel-loader": "^7.1.2",
+    "babel-plugin-lodash": "^3.2.11",
+    "babel-plugin-transform-object-rest-spread": "^6.26.0",
+    "babel-preset-env": "^1.6.0",
+    "babel-preset-es2015": "^6.24.1",
+    "lodash-webpack-plugin": "^0.11.4",
+    "webpack": "^3.5.5"
   }
 }
