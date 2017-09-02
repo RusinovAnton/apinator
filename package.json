@@ -1,0 +1,25 @@
+{
+  "name": "apinator",
+  "version": "1.0.0",
+  "description": "apinator ========",
+  "main": "apinator.js",
+  "directories": {
+    "example": "example"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/devsseb/apinator.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/devsseb/apinator/issues"
+  },
+  "homepage": "https://github.com/devsseb/apinator#readme",
+  "dependencies": {
+    "axios": "^0.16.2"
+  }
+}
