@@ -3,8 +3,7 @@ import jsonp from 'jsonp';
 
 const DEFAULT_AKINATOR_API_URL = 'http://api-en4.akinator.com/ws/';
 const DEFAULT_PLAYER_NAME = 'Player1';
-
-
+const SUCCESS_GUESS_PROGRESSION = 95;
 const GUESS_COMPLETION = {
   'OK': 1,
   'KO - ELEM LIST IS EMPTY': 0,
@@ -17,31 +16,6 @@ const GUESS_COMPLETION = {
  * @version 2.0.0
  */
 class Apinator {
-  /**
-   * Extract question, answers and isLast from response.
-   *
-   * @param {object} responseParams
-   * @return {{question: {id: number, text: string}, answers: Array, isLast: boolean}}
-   */
-  static transformResponse (responseParams) {
-    const parameters = responseParams.step_information ? responseParams.step_information : responseParams;
-    const { answers, questionid, question, progression } = parameters;
-
-    return {
-      question: {
-        id: questionid,
-        text: question
-      },
-      answers: answers.map(({ answer }, index) => {
-        return {
-          id: index,
-          text: answer
-        };
-      }),
-      isLast: parseInt(progression, 10) === 100
-    };
-  };
-
   /**
    *
    * @param {object} error
@@ -107,7 +81,7 @@ class Apinator {
         this.session = response.parameters.identification.session;
         this.signature = response.parameters.identification.signature;
 
-        const { question, answers } = Apinator.transformResponse(response.parameters);
+        const { question, answers } = this.transformResponse(response.parameters);
         this.ask(question, answers);
       })
       .catch(Apinator.handleError);
@@ -134,9 +108,9 @@ class Apinator {
 
     this.request(answerUrl)
       .then((response) => {
-        const { answers, question, isLast } = Apinator.transformResponse(response.parameters);
+        const { answers, question, isFound } = this.transformResponse(response.parameters);
 
-        if (isLast) {
+        if (isFound) {
           this.getCharacters();
         }
         else {
@@ -152,7 +126,7 @@ class Apinator {
    * @return {undefined}
    */
   getCharacters () {
-    const getCharactersUrl = `${this.url}list?session=${this.session}&signature=${this.signature}&step=${this.step}&size=2&max_pic_width=246&max_pic_height=294&pref_photos=OK-EN&mode_question=0`;
+    const getCharactersUrl = `${this.url}list?session=${this.session}&signature=${this.signature}&step=${this.step}&size=2&max_pic_width=246&max_pic_height=294&pref_photos=VO-OK&mode_question=0`;
 
     this.request(getCharactersUrl)
       .then((response) => {
@@ -170,6 +144,37 @@ class Apinator {
       })
       .catch(Apinator.handleError);
   };
+
+  /**
+   * Extract question, answers and isFound from response.
+   *
+   * @param {object} responseParams
+   * @return {{question: {id: number, text: string}, answers: Array, isFound: boolean}}
+   */
+  transformResponse (responseParams) {
+    const parameters = responseParams.step_information ? responseParams.step_information : responseParams;
+    const { answers, questionid, question, progression } = parameters;
+
+    return {
+      question: {
+        id: questionid,
+        text: question
+      },
+      answers: this.mapAnswers(answers),
+      isFound: parseInt(progression, 10) >= SUCCESS_GUESS_PROGRESSION
+    };
+  };
+
+  mapAnswers (answers) {
+    this.answers = this.answers || answers.map(({ answer }, index) => {
+      return {
+        id: index,
+        text: answer
+      };
+    });
+
+    return this.answers;
+  }
 }
 
 export default Apinator;

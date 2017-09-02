@@ -10,7 +10,8 @@
         const akinator = new Apinator(onAsk, onFound);
 
         function onAsk (question, answers, sendAnswer) {
-          const i = Math.floor(Math.random() * 2);
+//          const i = Math.floor(Math.random() * 5);
+          const i = 1;
           const nextAnswer = answers[i];
 
           console.log(question.text, nextAnswer.text);
