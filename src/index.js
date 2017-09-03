@@ -3,7 +3,13 @@ import jsonp from 'jsonp';
 
 const DEFAULT_AKINATOR_API_URL = 'http://api-en4.akinator.com/ws/';
 const DEFAULT_PLAYER_NAME = 'Player1';
-const SUCCESS_GUESS_PROGRESSION = 95;
+const constraints = {
+  percentage_list: 97,
+  nb_max_questions: 79,
+  questions_max_avant_prop: 25,
+  ecart_question_entre_prop: 5,
+};
+
 const GUESS_COMPLETION = {
   'OK': 1,
   'KO - ELEM LIST IS EMPTY': 0,
@@ -17,37 +23,45 @@ const GUESS_COMPLETION = {
  */
 class Apinator {
   /**
-   *
-   * @param {object} error
-   * @return {undefined}
-   */
-  static handleError (error) {
-    console.warn(error);
-    // TODO: throw mb?
-    // throw error;
-  }
-
-  /**
    * Initialize Akinator API wrapper.
    *
    * @constructor
    * @param {object} [opts]
    * @param {string} [opts.apiUrl = DEFAULT_AKINATOR_API_URL] - akinator api url
    * @param {string} [opts.playerName = DEFAULT_PLAYER_NAME] - enter player name
-   * @param {function} onAsk
-   * @param {function} onFound
+   * @param {function} onAskHandler
+   * @param {function} onFoundHandler
+   * @param {function} noMatchHandler
    */
-  constructor (onAsk, onFound, opts = {}) {
+  constructor (onAskHandler, onFoundHandler, noMatchHandler, opts = {}) {
     const { apiUrl = DEFAULT_AKINATOR_API_URL, playerName = DEFAULT_PLAYER_NAME } = opts;
 
-    this.onAsk = onAsk;
-    this.onFound = onFound;
+    this.onAsk = onAskHandler;
+    this.onFound = onFoundHandler;
+    this.onNoMatch = noMatchHandler;
     this.playerName = playerName;
     this.step = 0;
     this.url = apiUrl;
+
+    this.handleAnswerResponse = this.handleAnswerResponse.bind(this);
     this.sendAnswer = this.sendAnswer.bind(this);
   }
 
+  /**
+   *
+   * @param {object} error
+   * @return {undefined}
+   */
+  handleError (error) {
+    console.warn(error);
+    this.onNoMatch(error);
+  }
+
+  /**
+   *
+   * @param {string} url
+   * @return {Promise.<T>}
+   */
   request (url) {
     return new Promise((resolve, reject) => {
       jsonp(url, null, (err, data) => {
@@ -84,7 +98,7 @@ class Apinator {
         const { question, answers } = this.transformResponse(response.parameters);
         this.ask(question, answers);
       })
-      .catch(Apinator.handleError);
+      .catch(this.handleError);
   }
 
   /**
@@ -100,56 +114,85 @@ class Apinator {
   /**
    * Send chosen answerId.
    *
-   * @param {*} answerId
+   * @param {number} answerId - index of user's chosen answer
    * @return {undefined}
    */
   sendAnswer (answerId) {
     const answerUrl = `${this.url}answer?session=${this.session}&signature=${this.signature}&step=${this.step}&answer=${answerId}`;
 
     this.request(answerUrl)
-      .then((response) => {
-        const { answers, question, isFound } = this.transformResponse(response.parameters);
-
-        if (isFound) {
-          this.getCharacters();
-        }
-        else {
-          this.step++;
-          this.ask(question, answers);
-        }
-      })
-      .catch(Apinator.handleError);
+      .then(this.handleAnswerResponse)
+      .catch(this.handleError);
   };
+
+  handleAnswerResponse (response) {
+    const { answers, question, isAbleToFind } = this.transformResponse(response.parameters);
+
+    if (isAbleToFind) {
+      this.stepOfLastGuess = this.step;
+      this.list()
+        .then((elements) => {
+          this.onFound(elements);
+          this.step++;
+        });
+    }
+    else {
+      this.step++;
+      this.ask(question, answers);
+    }
+  }
 
   /**
    *
-   * @return {undefined}
+   * @param {string} currentProgression
+   * @return {boolean}
    */
-  getCharacters () {
-    const getCharactersUrl = `${this.url}list?session=${this.session}&signature=${this.signature}&step=${this.step}&size=2&max_pic_width=246&max_pic_height=294&pref_photos=VO-OK&mode_question=0`;
+  isAbleToFind (currentProgression) {
+    if (this.step === constraints.nb_max_questions) {
+      return true;
+    }
 
-    this.request(getCharactersUrl)
+    if ((this.step - this.stepOfLastProp) < constraints.ecart_question_entre_prop) {
+      return false;
+    }
+
+    if (currentProgression > constraints.percentage_list
+      || (this.step - this.stepOfLastProp) === constraints.questions_max_avant_prop) {
+      return this.step !== 75;
+    }
+
+    return false;
+  }
+
+  /**
+   *
+   * @return {Promise<T>}
+   */
+  list () {
+    const listUrl = `${this.url}list?session=${this.session}&signature=${this.signature}&step=${this.step}&size=2&max_pic_width=246&max_pic_height=294&pref_photos=VO-OK&mode_question=0`;
+
+    return this.request(listUrl)
       .then((response) => {
         const elements = response.parameters.elements;
-        const characters = elements.map((element, i) => {
+        return elements.map(({ element }) => {
           return {
-            id: element.element.id,
-            name: element.element.name,
-            probability: element.element.proba
+            id: element.id,
+            name: element.name,
+            probability: element.proba,
           };
         });
-
-        this.onFound(characters);
-        this.step++;
       })
-      .catch(Apinator.handleError);
+      .catch(this.handleError);
   };
 
+  // TODO:
+  // exclusion() {}
+
   /**
-   * Extract question, answers and isFound from response.
+   * Extract question, answers and isAbleToFind from response.
    *
    * @param {object} responseParams
-   * @return {{question: {id: number, text: string}, answers: Array, isFound: boolean}}
+   * @return {{question: {id: number, text: string}, answers: Array, isAbleToFind: boolean}}
    */
   transformResponse (responseParams) {
     const parameters = responseParams.step_information ? responseParams.step_information : responseParams;
@@ -158,18 +201,23 @@ class Apinator {
     return {
       question: {
         id: questionid,
-        text: question
+        text: question,
       },
       answers: this.mapAnswers(answers),
-      isFound: parseInt(progression, 10) >= SUCCESS_GUESS_PROGRESSION
+      isAbleToFind: this.isAbleToFind(progression),
     };
   };
 
+  /**
+   *
+   * @param {array} answers
+   * @return {array} answers
+   */
   mapAnswers (answers) {
     this.answers = this.answers || answers.map(({ answer }, index) => {
       return {
         id: index,
-        text: answer
+        text: answer,
       };
     });
 
