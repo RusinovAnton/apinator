@@ -1,8 +1,8 @@
 {
-  "name": "apinator",
+  "name": "node-apinator",
   "version": "2.0.0",
-  "description": "Javascript API wrapper for Akinator, the web genie.",
-  "main": "apinator.js",
+  "description": "Nodejs wrapper fro Akinator, the web genie API.",
+  "main": "src/index.js",
   "directories": {
     "example": "example",
     "dist": "dist",
@@ -34,8 +34,10 @@
   "homepage": "https://github.com/RusinovAnton/apinator#readme",
   "dependencies": {
     "axios": "^0.16.2",
-    "jsonp": "^0.2.1",
-    "lodash": "^4.17.4"
+    "lodash": "^4.17.4",
+    "qs": "^6.5.0",
+    "request": "^2.81.0",
+    "request-promise": "^4.2.1"
   },
   "devDependencies": {
     "babel-core": "^6.26.0",

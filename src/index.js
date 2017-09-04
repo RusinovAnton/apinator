@@ -1,23 +1,36 @@
-import jsonp from 'jsonp';
+const request = require('request-promise');
 
-
-const DEFAULT_AKINATOR_API_URL = 'http://api-en4.akinator.com/ws/';
-const DEFAULT_PLAYER_NAME = 'Player1';
-const constraints = {
-  percentage_list: 97,
-  nb_max_questions: 79,
-  questions_max_avant_prop: 25,
-  ecart_question_entre_prop: 5,
-};
-
-const GUESS_COMPLETION = {
-  'OK': 1,
-  'KO - ELEM LIST IS EMPTY': 0,
-  'WARN - NO QUESTION': 0,
-};
+function trimSlash (path) {
+  return {
+    end () {
+      return path.replace(/\/$/);
+    },
+    start () {
+      return path.replace(/^\//);
+    },
+  };
+}
 
 /**
- * Javascript API wrapper for Akinator, the web genie.
+ *
+ * @param {string} path
+ * @param {object} params
+ * @return {string} pathWithQueryString
+ */
+
+// TODO:
+function makePathWithQueryParams (path, params) {
+  let queryParams = '?';
+
+  Object.keys(params, (key) => {
+
+  });
+
+  return `${trimSlash(path).end}${queryParams}`;
+}
+
+/**
+ * Nodejs wrapper fro Akinator, the web genie API.
  * @class Apinator
  * @version 2.0.0
  */
@@ -27,21 +40,21 @@ class Apinator {
    *
    * @constructor
    * @param {object} [opts]
-   * @param {string} [opts.apiUrl = DEFAULT_AKINATOR_API_URL] - akinator api url
-   * @param {string} [opts.playerName = DEFAULT_PLAYER_NAME] - enter player name
+   * @param {string} [opts.apiUrl = Apinator.DEFAULT_AKINATOR_API_URL] - akinator api url
+   * @param {string} [opts.playerName = Apinator.DEFAULT_PLAYER_NAME] - enter player name
    * @param {function} onAskHandler
    * @param {function} onFoundHandler
    * @param {function} noMatchHandler
    */
   constructor (onAskHandler, onFoundHandler, noMatchHandler, opts = {}) {
-    const { apiUrl = DEFAULT_AKINATOR_API_URL, playerName = DEFAULT_PLAYER_NAME } = opts;
+    const { apiUrl = Apinator.DEFAULT_AKINATOR_API_URL, playerName = Apinator.DEFAULT_PLAYER_NAME } = opts;
 
     this.onAsk = onAskHandler;
     this.onFound = onFoundHandler;
     this.onNoMatch = noMatchHandler;
     this.playerName = playerName;
     this.step = 0;
-    this.url = apiUrl;
+    this.baseUrl = trimSlash(apiUrl).end();
 
     this.handleAnswerResponse = this.handleAnswerResponse.bind(this);
     this.sendAnswer = this.sendAnswer.bind(this);
@@ -58,23 +71,24 @@ class Apinator {
   }
 
   /**
+   * API request wrapper.
    *
-   * @param {string} url
+   * @param {string} path
    * @return {Promise.<T>}
    */
-  request (url) {
-    return new Promise((resolve, reject) => {
-      jsonp(url, null, (err, data) => {
-        if (err) {
-          reject(err);
+  request (path) {
+    const requestUrl = `${this.baseUrl}/${trimSlash(path).start()}`;
+
+    return request(requestUrl)
+      .then((res) => {
+        try {
+          return JSON.parse(res);
+        } catch (e) {
+          return res;
         }
-        else {
-          resolve(data);
-        }
-      });
-    })
+      })
       .then((response) => {
-        if (GUESS_COMPLETION[response.completion]) {
+        if (Apinator.GUESS_COMPLETION[response.completion]) {
           return response;
         }
 
@@ -88,7 +102,7 @@ class Apinator {
    * @return {undefined}
    */
   start () {
-    const newSessionUrl = `${this.url}new_session?partner=1&player=${this.playerName}`;
+    const newSessionUrl = `new_session?partner=1&player=${this.playerName}`;
 
     this.request(newSessionUrl)
       .then((response) => {
@@ -102,6 +116,7 @@ class Apinator {
   }
 
   /**
+   * Call onAskHandler.
    *
    * @param {object} question
    * @param {Array} answers
@@ -118,11 +133,10 @@ class Apinator {
    * @return {undefined}
    */
   sendAnswer (answerId) {
-    const answerUrl = `${this.url}answer?session=${this.session}&signature=${this.signature}&step=${this.step}&answer=${answerId}`;
+    const answerUrl = `answer?session=${this.session}&signature=${this.signature}&step=${this.step}&answer=${answerId}`;
 
     this.request(answerUrl)
-      .then(this.handleAnswerResponse)
-      .catch(this.handleError);
+      .then(this.handleAnswerResponse);
   };
 
   handleAnswerResponse (response) {
@@ -148,16 +162,16 @@ class Apinator {
    * @return {boolean}
    */
   isAbleToFind (currentProgression) {
-    if (this.step === constraints.nb_max_questions) {
+    if (this.step === Apinator.CONSTRAINTS.nb_max_questions) {
       return true;
     }
 
-    if ((this.step - this.stepOfLastProp) < constraints.ecart_question_entre_prop) {
+    if ((this.step - this.stepOfLastProp) < Apinator.CONSTRAINTS.ecart_question_entre_prop) {
       return false;
     }
 
-    if (currentProgression > constraints.percentage_list
-      || (this.step - this.stepOfLastProp) === constraints.questions_max_avant_prop) {
+    if (currentProgression > Apinator.CONSTRAINTS.percentage_list
+      || (this.step - this.stepOfLastProp) === Apinator.CONSTRAINTS.questions_max_avant_prop) {
       return this.step !== 75;
     }
 
@@ -169,7 +183,7 @@ class Apinator {
    * @return {Promise<T>}
    */
   list () {
-    const listUrl = `${this.url}list?session=${this.session}&signature=${this.signature}&step=${this.step}&size=2&max_pic_width=246&max_pic_height=294&pref_photos=VO-OK&mode_question=0`;
+    const listUrl = `/list?session=${this.session}&signature=${this.signature}&step=${this.step}&size=2&max_pic_width=246&max_pic_height=294&pref_photos=VO-OK&mode_question=0`;
 
     return this.request(listUrl)
       .then((response) => {
@@ -181,8 +195,7 @@ class Apinator {
             probability: element.proba,
           };
         });
-      })
-      .catch(this.handleError);
+      });
   };
 
   // TODO:
@@ -225,4 +238,18 @@ class Apinator {
   }
 }
 
-export default Apinator;
+Apinator.DEFAULT_AKINATOR_API_URL = 'http://api-en4.akinator.com/ws/';
+Apinator.DEFAULT_PLAYER_NAME = 'Player1';
+Apinator.CONSTRAINTS = {
+  percentage_list: 97,
+  nb_max_questions: 79,
+  questions_max_avant_prop: 25,
+  ecart_question_entre_prop: 5,
+};
+Apinator.GUESS_COMPLETION = {
+  'OK': 1,
+  'KO - ELEM LIST IS EMPTY': 0,
+  'WARN - NO QUESTION': 0,
+};
+
+module.exports = Apinator;
