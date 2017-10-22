@@ -1,4 +1,4 @@
-const Apinator = require('../src/index');
+const Apinator = require('./index');
 
 
 const akinator = new Apinator(onAsk, onFound, noMatch, {});
